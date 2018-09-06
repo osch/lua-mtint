@@ -87,7 +87,7 @@ int mtint_ERROR_OUT_OF_MEMORY_bytes(lua_State* L, size_t bytes)
 
 static void publishError(lua_State* L, int module, const char* errorName)
 {
-    lua_pushstring(L, errorName);
+    lua_pushfstring(L, "%s.%s", MTINT_ERROR_CLASS_NAME, errorName);
     lua_setfield(L, module, errorName);
 }
 
