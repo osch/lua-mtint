@@ -32,7 +32,10 @@ do
                                     local ok, err = pcall(function()
                                         threadOut:addmsg(mtint.id())
                                         x = 0
-                                        while true do x = x + 1 end
+                                        while true do 
+                                            x = x + 1
+                                            mtmsg.sleep(0) -- for LuaJIT
+                                        end
                                     end)
                                     print("-------------------------------------")
                                     print("-- Thread: Expected error:")
@@ -41,7 +44,10 @@ do
                                     assert(not ok and err:match(mtint.error.interrupted))
                                     threadOut:addmsg(mtint.id())
                                     x = 0
-                                    while true do x = x + 1 end
+                                    while true do 
+                                        x = x + 1
+                                        mtmsg.sleep(0) -- for LuaJIT
+                                    end
                                 end,
                                 threadIn:id(), threadOut:id())
     thread:start()

@@ -8,7 +8,10 @@ local thread    = llthreads.new(function(outId)
                                     local threadOut = mtmsg.buffer(outId)
                                     threadOut:addmsg(mtint.id())
                                     local x = 1
-                                    while true do x = x + 1 end
+                                    while true do 
+                                        x = x + 1 
+                                        mtmsg.sleep(0) -- for LuaJIT
+                                    end
                                 end,
                                 threadOut:id())
 thread:start()

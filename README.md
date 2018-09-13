@@ -2,7 +2,7 @@
 [![Licence](http://img.shields.io/badge/Licence-MIT-brightgreen.svg)](LICENSE)
 [![Build Status](https://travis-ci.org/osch/lua-mtint.svg?branch=master)](https://travis-ci.org/osch/lua-mtint)
 [![Build status](https://ci.appveyor.com/api/projects/status/g5sijdrvdx6vviqr/branch/master?svg=true)](https://ci.appveyor.com/project/osch/lua-mtint/branch/master)
-
+[![Install](https://img.shields.io/badge/Install-LuaRocks-brightgreen.svg)](https://luarocks.org/modules/osch/mtint)
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
@@ -34,10 +34,11 @@ See below for full [reference documentation](#documentation).
    * Other Unix variants: could work, but untested, required are:
       * gcc atomic builtins or C11 `stdatomic.h`
       * `pthread.h` or C11 `threads.h`
-   * Tested Lua versions: 5.1, 5.2 & 5.3
+   * Tested Lua versions: 5.1, 5.2, 5.3, luajit 2.0 & 2.1
        * Lua 5.2 & 5.3: full support, main states and coroutines are interruptible.
        * Lua 5.1: coroutines cannot be interrupted, only main states.
-       * LuaJIT: currently not supported :-(
+       * LuaJIT: same restrictions than Lua 5.1, JIT compiled pure machine code 
+                 not considering the debug hook cannot be interrupted.
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
@@ -63,7 +64,10 @@ local thread    = llthreads.new(function(outId)
                                     local threadOut = mtmsg.buffer(outId)
                                     threadOut:addmsg(mtint.id())
                                     local x = 1
-                                    while true do x = x + 1 end
+                                    while true do 
+                                        x = x + 1 
+                                        mtmsg.sleep(0) -- for LuaJIT
+                                    end
                                 end,
                                 threadOut:id())
 thread:start()
@@ -72,6 +76,10 @@ mtint.interrupt(interruptibleId)
 local _, err = thread:join()
 assert(err:match(mtint.error.interrupted))
 ```
+
+The `sleep(0)` is necessary for LuaJIT because otherwise the infinite loop would 
+be compiled by the JIT to pure machine code that does not consider the lua debug 
+hook which is needed for interrupting.
 
 In the second example a coroutine is interrupted while it runs concurrently in 
 another thread. This example does only work with Lua 5.2 & 5.3 (interrupting 
