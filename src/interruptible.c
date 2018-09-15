@@ -2,9 +2,9 @@
 #include "error.h"
 #include "main.h"
 
-const char* const MTINT_INTERRUPTIBLE_CLASS_NAME   = "mtint.interruptible";
+static const char* const MTINT_INTERRUPTIBLE_CLASS_NAME   = "mtint.interruptible";
 
-const char* const MTINT_COROUTINE_GUARD_CLASS_NAME = "mtint.guard.coroutine";
+static const char* const MTINT_COROUTINE_GUARD_CLASS_NAME = "mtint.guard.coroutine";
 
 typedef struct MtInterruptible {
     lua_Integer        id;
@@ -530,23 +530,22 @@ static const luaL_Reg ModuleFunctions[] =
 
 static void setupInterruptibleMeta(lua_State* L)
 {
-    luaL_newmetatable(L, MTINT_INTERRUPTIBLE_CLASS_NAME);
+    lua_pushstring(L, MTINT_INTERRUPTIBLE_CLASS_NAME);
+    lua_setfield(L, -2, "__metatable");
 
-        lua_pushstring(L, MTINT_INTERRUPTIBLE_CLASS_NAME);
-        lua_setfield(L, -2, "__metatable");
-
-        luaL_setfuncs(L, InterruptibleMetaMethods, 0);
-        
-        lua_newtable(L);  /* interruptibleClass */
-            luaL_setfuncs(L, InterruptibleMethods, 0);
-        lua_setfield (L, -2, "__index");
-
-    lua_pop(L, 1);
+    luaL_setfuncs(L, InterruptibleMetaMethods, 0);
+    
+    lua_newtable(L);  /* interruptibleClass */
+        luaL_setfuncs(L, InterruptibleMethods, 0);
+    lua_setfield (L, -2, "__index");
 }
 
 int mtint_interruptible_init_module(lua_State* L, int module)
 {
-    setupInterruptibleMeta(L);
+    if (luaL_newmetatable(L, MTINT_INTERRUPTIBLE_CLASS_NAME)) {
+        setupInterruptibleMeta(L);
+    }
+    lua_pop(L, 1);
     
     lua_pushvalue(L, module);
         luaL_setfuncs(L, ModuleFunctions, 0);

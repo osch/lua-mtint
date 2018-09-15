@@ -38,30 +38,8 @@ static int handleClosingLuaState(lua_State* L)
 }
 
 
-static int Mtint_type(lua_State* L)
-{
-    luaL_checkany(L, 1);
-    int tp = lua_type(L, 1);
-    if (tp == LUA_TUSERDATA) {
-        if (lua_getmetatable(L, 1)) {
-            if (lua_getfield(L, -1, "__name") == LUA_TSTRING) {
-                lua_pushvalue(L, -1);
-                if (lua_gettable(L, LUA_REGISTRYINDEX) == LUA_TTABLE) {
-                    if (lua_rawequal(L, -3, -1)) {
-                        lua_pop(L, 1);
-                        return 1;
-                    }
-                }
-            }
-        }
-    }
-    lua_pushstring(L, lua_typename(L, tp));
-    return 1;
-}
-
 static const luaL_Reg ModuleFunctions[] = 
 {
-    { "type",    Mtint_type },      
     { NULL,      NULL          } /* sentinel */
 };
 
