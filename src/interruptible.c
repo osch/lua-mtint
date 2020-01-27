@@ -230,6 +230,56 @@ static int pushInterruptibleMeta(lua_State* L)
     return 1;
 }
 
+static IntrUserData* assureCreatedMtInterruptible(lua_State* L, lua_State* L2, int thread, bool isMain)
+{
+    IntrUserData* udata = lookupIntrUserData(L, thread);
+
+    if (!udata || udata->interruptible == NULL || udata->interruptible->L2 != L2) 
+    {
+        udata = lua_newuserdata(L, sizeof(IntrUserData));
+        memset(udata, 0, sizeof(IntrUserData));
+        pushInterruptibleMeta(L); /* -> udata, meta */
+        lua_setmetatable(L, -2); /* -> udata */
+        int udataIdx = lua_gettop(L);
+        
+        MtInterruptible* intrp = calloc(1, sizeof(MtInterruptible));
+        if (!intrp) {
+            mtint_ERROR_OUT_OF_MEMORY(L); return NULL;
+        }
+        intrp->id   = atomic_inc(&mtint_id_counter);
+        intrp->used = 1;
+        async_lock_init(&intrp->lock);
+        udata->interruptible = intrp;
+        udata->isMainGuard   = isMain;
+        
+        setupInterruptibleGuard(L, udataIdx, thread, isMain);
+
+        async_mutex_lock(mtint_global_lock);
+        {
+            if (atomic_get(&interruptible_counter) + 1 > interruptible_buckets * 4 || bucket_usage > 30) {
+                lua_Integer n = interruptible_buckets ? (2 * interruptible_buckets) : 64;
+                InterruptibleBucket* newList = calloc(n, sizeof(InterruptibleBucket));
+                if (newList) {
+                    newBuckets(n, newList);
+                } else if (!interruptible_buckets) {
+                    async_mutex_unlock(mtint_global_lock);
+                    mtint_ERROR_OUT_OF_MEMORY(L); return NULL;
+                }
+            }
+            toBuckets(intrp, interruptible_buckets, interruptible_bucket_list);
+            atomic_inc(&interruptible_counter);
+            
+            intrp->L2 = L2;
+            atomic_set(&intrp->initialized, true);
+        }
+        async_mutex_unlock(mtint_global_lock);
+        lua_settop(L, udataIdx);        /* -> udata */
+        lua_newtable(L);                /* -> udata, uv */
+        lua_setuservalue(L, -2);        /* -> udata */
+    }
+    return udata;
+}
+
 static int Mtint_id(lua_State* L)
 {
     int arg       = 1;
@@ -253,54 +303,49 @@ static int Mtint_id(lua_State* L)
         return mtint_ERROR_NOT_SUPPORTED(L, "coroutines cannot be interrupted in Lua 5.1");
     }
 #endif
-
-    IntrUserData*     udata = lookupIntrUserData(L, thread);
-    MtInterruptible*  intrp;
-
-    if (!udata || udata->interruptible == NULL || udata->interruptible->L2 != L2) 
-    {
-        IntrUserData* udata = lua_newuserdata(L, sizeof(IntrUserData));
-        memset(udata, 0, sizeof(IntrUserData));
-        pushInterruptibleMeta(L); /* -> udata, meta */
-        lua_setmetatable(L, -2); /* -> udata */
-        int udataIdx = lua_gettop(L);
-        
-        intrp = calloc(1, sizeof(MtInterruptible));
-        if (!intrp) {
-            return mtint_ERROR_OUT_OF_MEMORY(L);
-        }
-        intrp->id   = atomic_inc(&mtint_id_counter);
-        intrp->used = 1;
-        async_lock_init(&intrp->lock);
-        udata->interruptible = intrp;
-        udata->isMainGuard   = isMain;
-        
-        setupInterruptibleGuard(L, udataIdx, thread, isMain);
-
-        async_mutex_lock(mtint_global_lock);
-        {
-            if (atomic_get(&interruptible_counter) + 1 > interruptible_buckets * 4 || bucket_usage > 30) {
-                lua_Integer n = interruptible_buckets ? (2 * interruptible_buckets) : 64;
-                InterruptibleBucket* newList = calloc(n, sizeof(InterruptibleBucket));
-                if (newList) {
-                    newBuckets(n, newList);
-                } else if (!interruptible_buckets) {
-                    async_mutex_unlock(mtint_global_lock);
-                    return mtint_ERROR_OUT_OF_MEMORY(L);
-                }
-            }
-            toBuckets(intrp, interruptible_buckets, interruptible_bucket_list);
-            atomic_inc(&interruptible_counter);
-            
-            intrp->L2 = L2;
-            atomic_set(&intrp->initialized, true);
-        }
-        async_mutex_unlock(mtint_global_lock);
-    } else {
-        intrp = udata->interruptible;
-    }
-    lua_pushinteger(L, intrp->id);
+    IntrUserData* udata = assureCreatedMtInterruptible(L, L2, thread, isMain);
+    
+    lua_pushinteger(L, udata->interruptible->id);
     return 1;
+}
+
+static int Mtint_setHook(lua_State* L)
+{
+    lua_State* L2 = NULL;
+    int  thread   = 0;
+    bool isMain   = false;
+    int  func     = 0;
+    
+    int arg = 1;
+    if (lua_type(L, arg) == LUA_TTHREAD) {
+        L2     = lua_tothread(L, arg);
+        isMain = lua_pushthread(L2); /* check if main */
+                 lua_pop(L2, 1);
+        thread = arg++;
+    }
+    if (!lua_isnoneornil(L, arg)) {
+        luaL_checktype(L, arg, LUA_TFUNCTION);
+        func = arg++;
+    }
+    if (!thread) {
+        isMain = lua_pushthread(L);
+        L2     = L;
+        thread = lua_gettop(L);
+    }
+#if LUA_VERSION_NUM == 501
+    if (!isMain) {
+        return mtint_ERROR_NOT_SUPPORTED(L, "coroutines cannot be interrupted in Lua 5.1");
+    }
+#endif
+    assureCreatedMtInterruptible(L, L2, thread, isMain); /* -> udata */
+    lua_getuservalue(L, -1);                             /* -> udata, uv */
+    if (func) {
+        lua_pushvalue(L, func);                          /* -> udata, uv, func */
+    } else {
+        lua_pushnil(L);                                  /* -> udata, uv, nil */
+    }
+    lua_rawseti(L, -2, 1);                               /* -> udata, uv */
+    return 0;
 }
 
 static int Mtint_interruptible(lua_State* L)
@@ -387,17 +432,38 @@ static int MtInterruptible_release(lua_State* L)
     return 0;
 }
 
+static void interruptHookCommon(lua_State* L2)
+{
+    int oldtop = lua_gettop(L2);
+    lua_pushthread(L2);                                 /* -> L2 */
+    int thread = oldtop + 1;
+    IntrUserData* udata = lookupIntrUserData(L2, thread);
+    if (udata) {                                        /* -> L2, udata */
+        lua_getuservalue(L2, -1);                       /* -> L2, udata, uv */
+        if (lua_rawgeti(L2, -1, 1) == LUA_TFUNCTION) {  /* -> L2, udata, uv, hook */
+            lua_call(L2, 0, 0);                         /* -> L2, udata, uv */
+            lua_settop(L2, oldtop);
+        } else {
+            lua_settop(L2, oldtop);
+            mtint_ERROR_INTERRUPTED(L2);
+        }
+    } else {
+        lua_settop(L2, oldtop);
+        mtint_ERROR_INTERRUPTED(L2);
+    }
+}
+
 static void interruptHook1(lua_State* L2, lua_Debug* ar) 
 {
-  (void)ar;  /* unused arg. */
-  lua_sethook(L2, NULL, 0, 0);  /* reset hook */
-  mtint_ERROR_INTERRUPTED(L2);
+      (void)ar;  /* unused arg. */
+      lua_sethook(L2, NULL, 0, 0);  /* reset hook */
+      interruptHookCommon(L2);
 }
 
 static void interruptHook2(lua_State* L2, lua_Debug* ar) 
 {
-  (void)ar;  /* unused arg. */
-  mtint_ERROR_INTERRUPTED(L2);
+    (void)ar;  /* unused arg. */
+    interruptHookCommon(L2);
 }
 
 static bool mtint_interrupt(MtInterruptible*  intrp, lua_Hook hook)
@@ -522,6 +588,7 @@ static const luaL_Reg InterruptibleMetaMethods[] =
 static const luaL_Reg ModuleFunctions[] = 
 {
     { "id",                Mtint_id            },
+    { "sethook",           Mtint_setHook       },
     { "interrupt",         Mtint_interrupt     },
     { "interruptible",     Mtint_interruptible },
     { NULL,        NULL } /* sentinel */

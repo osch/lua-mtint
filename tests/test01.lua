@@ -119,4 +119,45 @@ if _VERSION ~= "Lua 5.1" then
     assert(not ok and err:match(mtint.error.unknown_object))
 end
 PRINT("==================================================================================")
+do
+    local c = coroutine.create(function() end)
+    if _VERSION == "Lua 5.1" then
+        local ok, err = pcall(function()
+            mtint.sethook(c, function() end)
+        end)
+        print("-------------------------------------")
+        print("-- Expected error:")
+        print(err)
+        print("-------------------------------------")
+        assert(not ok and err:match(mtint.error.not_supported))
+    else
+        mtint.sethook(c, function() end)
+    end
+end
+PRINT("==================================================================================")
+do
+    local c = coroutine.create(function() 
+        mtint.sethook(function() end)
+        yield("ok")
+    end)
+    local ok, rslt = resume(c)
+    if _VERSION == "Lua 5.1" then
+        print("-------------------------------------")
+        print("-- Expected error:")
+        print(rslt)
+        print("-------------------------------------")
+        assert(not ok and rslt:match(mtint.error.not_supported))
+    else
+        assert(ok and rslt == "ok")
+    end
+end
+PRINT("==================================================================================")
+do
+    local c = coroutine.create(function() end)
+    mtint.sethook()
+    if _VERSION ~= "Lua 5.1" then
+        mtint.sethook(c)
+    end
+end
+PRINT("==================================================================================")
 print("OK.")

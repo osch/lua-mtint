@@ -3,14 +3,16 @@ local mtmsg     = require("mtmsg")
 local mtint     = require("mtint")
 local threadOut = mtmsg.newbuffer()
 local thread    = llthreads.new(function(outId)
-                                    local mtmsg     = require("mtmsg")
-                                    local mtint     = require("mtint")
-                                    local threadOut = mtmsg.buffer(outId)
+                                    local loadstring = loadstring or load
+                                    local mtmsg      = require("mtmsg")
+                                    local mtint      = require("mtint")
+                                    local threadOut  = mtmsg.buffer(outId)
                                     threadOut:addmsg(mtint.id())
                                     local x = 1
                                     while true do 
                                         x = x + 1 
-                                        mtmsg.sleep(0) -- for LuaJIT
+                                        -- do some work, prevent jit compilation for LuaJIT:
+                                        assert(x == loadstring("return "..x)())
                                     end
                                 end,
                                 threadOut:id())

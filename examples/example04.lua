@@ -1,12 +1,7 @@
-if _VERSION == "Lua 5.1" then return end
+  local mtint = require("mtint")
+  local _, err = pcall(function() 
+      mtint.interrupt(1)
+  end)
+  assert(err:match(mtint.error.unknown_object))
+  assert(mtint.error.unknown_object == "mtint.error.unknown_object")
 
-local mtint = require("mtint")
-local c = coroutine.create(function() end)
-local id = mtint.id(c)
-mtint.interrupt(id)
-c = nil
-collectgarbage()
-local _, err = pcall(function()
-    mtint.interrupt(id)
-end)
-assert(err:match(mtint.error.unknown_object))

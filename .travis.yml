@@ -51,9 +51,11 @@ script:
   - lua example02.lua
   - lua example03.lua
   - lua example04.lua
+  - lua example05.lua
   - cd ../tests
   - lua test01.lua
   - lua test02.lua
+  - lua test03.lua
 
 notifications:
   email:

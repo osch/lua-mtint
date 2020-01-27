@@ -49,7 +49,9 @@ is used as low level multi-threading implementation and
 [mtmsg](https://luarocks.org/modules/osch/mtmsg) is used for inter-thread
 message passing.
 
-First example: a parallel running thread passes its interruptible id as integer to 
+#### Example 1
+
+A parallel running thread passes its interruptible id as integer to 
 the main thread and enters an infinite loop. The main thread takes the id and
 interrupts the infinite loop:
 
@@ -59,14 +61,16 @@ local mtmsg     = require("mtmsg")
 local mtint     = require("mtint")
 local threadOut = mtmsg.newbuffer()
 local thread    = llthreads.new(function(outId)
-                                    local mtmsg     = require("mtmsg")
-                                    local mtint     = require("mtint")
-                                    local threadOut = mtmsg.buffer(outId)
+                                    local loadstring = loadstring or load
+                                    local mtmsg      = require("mtmsg")
+                                    local mtint      = require("mtint")
+                                    local threadOut  = mtmsg.buffer(outId)
                                     threadOut:addmsg(mtint.id())
                                     local x = 1
                                     while true do 
                                         x = x + 1 
-                                        mtmsg.sleep(0) -- for LuaJIT
+                                        -- do some work, prevent jit compilation for LuaJIT:
+                                        assert(x == loadstring("return "..x)())
                                     end
                                 end,
                                 threadOut:id())
@@ -77,9 +81,11 @@ local _, err = thread:join()
 assert(err:match(mtint.error.interrupted))
 ```
 
-The `sleep(0)` is necessary for LuaJIT because otherwise the infinite loop would 
+The `loadstring(...)` is necessary for LuaJIT because otherwise the infinite loop would 
 be compiled by the JIT to pure machine code that does not consider the lua debug 
 hook which is needed for interrupting.
+
+#### Example 2
 
 In the second example a coroutine is interrupted while it runs concurrently in 
 another thread. This example does only work with Lua 5.2 & 5.3 (interrupting 
@@ -112,6 +118,63 @@ mtint.interrupt(interruptibleId)
 assert(thread:join())
 ```
 
+#### Example 3
+
+The interrupting main thread communicates via [mtmsg](https://luarocks.org/modules/osch/mtmsg)
+with an interrupt handler on the interrupted thread:
+
+```lua
+local llthreads = require("llthreads2.ex")
+local mtmsg     = require("mtmsg")
+local mtint     = require("mtint")
+
+local threadIn  = mtmsg.newbuffer()
+local threadOut = mtmsg.newbuffer()
+
+local thread = llthreads.new(function(threadInId, threadOutId)
+                                local loadstring = loadstring or load
+                                local mtmsg      = require("mtmsg")
+                                local mtint      = require("mtint")
+                                local threadIn   = mtmsg.buffer(threadInId)
+                                local threadOut  = mtmsg.buffer(threadOutId)
+                                local stop       = false
+                                local counter    = 0
+                                mtint.sethook(function()
+                                    print("counter", counter)
+                                    local cmd = threadIn:nextmsg()
+                                    if cmd == "CONTINUE" then
+                                        threadOut:addmsg("OK")
+                                    end
+                                    if cmd == "QUIT" then
+                                        threadOut:addmsg("QUITTING")
+                                        stop = true
+                                    end
+                                end)
+                                threadOut:addmsg(mtint.id())
+                                while not stop do 
+                                    counter = counter + 1
+                                    -- do some work, prevent jit compilation for LuaJIT:
+                                    assert(counter == loadstring("return "..counter)())
+                                end
+                            end,
+                            threadIn:id(), threadOut:id())
+thread:start()
+local intId = threadOut:nextmsg()
+
+threadIn:addmsg("CONTINUE")
+mtint.interrupt(intId)
+assert("OK" == threadOut:nextmsg())
+
+threadIn:addmsg("CONTINUE")
+mtint.interrupt(intId)
+assert("OK" == threadOut:nextmsg())
+
+threadIn:addmsg("QUIT")
+mtint.interrupt(intId)
+assert("QUITTING" == threadOut:nextmsg())
+
+thread:join()
+```
 
 
 <!-- ---------------------------------------------------------------------------------------- -->
@@ -120,6 +183,7 @@ assert(thread:join())
 
    * [Module Functions](#module-functions)
        * mtint.id()
+       * mtint.sethook()
        * mtint.interrupt()
    * [Errors](#errors)
        * mtint.error.interrupt
@@ -138,6 +202,23 @@ assert(thread:join())
               given, the interruptible id of the current running coroutine or
               main state is returned.
 
+  Possible errors: *mtint.error.not_supported*
+
+
+
+* **`mtint.sethook([co,]func)`**
+
+  Sets an interrupt handler function. The interrupt handler is called on the interrupted thread 
+  if *mtint.interrupt()* is called from somewhere else. If the interrupt handler is set 
+  to `nil`, an error *mtint.error.interrupt* is raised on the interrupted thread.
+  
+  
+    * *co*   - optional coroutine whose interrupt handler is to be set. If not
+               given, the interrupt handler of the current running coroutine or
+               main state is set.
+
+    * *func* - interrupt handler function or `nil`.
+    
   Possible errors: *mtint.error.not_supported*
 
 
@@ -172,7 +253,8 @@ assert(thread:join())
 
 * **`mtint.error.interrupt`**
 
-  The current state or coroutine has been interrupted by invoking *mtint.interrupt()*.
+  The current state or coroutine has been interrupted by invoking *mtint.interrupt()*
+  and no interrupt handler function was set via *mtint.sethook()*.
 
 * **`mtint.error.not_supported`**
 
