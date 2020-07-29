@@ -34,8 +34,8 @@ See below for full [reference documentation](#documentation).
    * Other Unix variants: could work, but untested, required are:
       * gcc atomic builtins or C11 `stdatomic.h`
       * `pthread.h` or C11 `threads.h`
-   * Tested Lua versions: 5.1, 5.2, 5.3, luajit 2.0 & 2.1
-       * Lua 5.2 & 5.3: full support, main states and coroutines are interruptible.
+   * Tested Lua versions: 5.1, 5.2, 5.3, 5.4, luajit 2.0 & 2.1
+       * Lua 5.2 - 5.4: full support, main states and coroutines are interruptible.
        * Lua 5.1: coroutines cannot be interrupted, only main states.
        * LuaJIT: same restrictions than Lua 5.1, JIT compiled pure machine code 
                  not considering the debug hook cannot be interrupted.

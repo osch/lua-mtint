@@ -1,8 +1,9 @@
 package = "mtint"
-version = "scm-0"
+version = "0.3.3-1"
+local versionNumber = version:gsub("^(.*)-.-$", "%1")
 source = {
-  url = "https://github.com/osch/lua-mtint/archive/master.zip",
-  dir = "lua-mtint-master",
+  url = "https://github.com/osch/lua-mtint/archive/v"..versionNumber..".zip",
+  dir = "lua-mtint-"..versionNumber,
 }
 description = {
   summary = "Make threads and coroutines interruptible",
@@ -46,7 +47,7 @@ build = {
           "src/async_util.c",
           "src/mtint_compat.c",
       },
-      defines = { "MTINT_VERSION="..version:gsub("^(.*)-.-$", "%1") },
+      defines = { "MTINT_VERSION="..versionNumber },
     },
   }
 }
