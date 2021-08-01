@@ -28,13 +28,6 @@ build = {
           libraries = {"pthread"},
         }
       }
-    },
-    windows = {
-      modules = {
-        mtint = {
-          libraries = {"kernel32"},
-        }
-      }
     }
   },
   modules = {

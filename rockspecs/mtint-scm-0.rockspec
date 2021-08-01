@@ -28,13 +28,6 @@ build = {
         }
       }
     },
-    windows = {
-      modules = {
-        mtint = {
-          libraries = {"kernel32"},
-        }
-      }
-    }
   },
   modules = {
     mtint = {
