@@ -1,6 +1,6 @@
 # mtint 
 [![Licence](http://img.shields.io/badge/Licence-MIT-brightgreen.svg)](LICENSE)
-[![Build Status](https://travis-ci.org/osch/lua-mtint.svg?branch=master)](https://travis-ci.org/osch/lua-mtint)
+[![build status](https://github.com/osch/lua-mtint/workflows/test/badge.svg)](https://github.com/osch/lua-mtint/actions/workflows/test.yml)
 [![Build status](https://ci.appveyor.com/api/projects/status/g5sijdrvdx6vviqr/branch/master?svg=true)](https://ci.appveyor.com/project/osch/lua-mtint/branch/master)
 [![Install](https://img.shields.io/badge/Install-LuaRocks-brightgreen.svg)](https://luarocks.org/modules/osch/mtint)
 
