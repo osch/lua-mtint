@@ -1,5 +1,5 @@
 package = "mtint"
-version = "0.3.3-1"
+version = "0.3.4-1"
 local versionNumber = version:gsub("^(.*)-.-$", "%1")
 source = {
   url = "https://github.com/osch/lua-mtint/archive/v"..versionNumber..".zip",
